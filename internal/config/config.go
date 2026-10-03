@@ -16,8 +16,8 @@ import (
 
 	"github.com/BurntSushi/toml"
 
-	"github.com/samba-conductor/conductor-files/filesapi"
-	"github.com/samba-conductor/conductor-files/internal/samba"
+	"github.com/openbasalt/samba-conductor-files/filesapi"
+	"github.com/openbasalt/samba-conductor-files/internal/samba"
 )
 
 // DefaultPath is where the agent reads its configuration.

@@ -7,10 +7,10 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/samba-conductor/conductor-files/filesapi"
-	"github.com/samba-conductor/conductor-files/internal/fsguard"
-	"github.com/samba-conductor/conductor-files/internal/samba"
-	"github.com/samba-conductor/conductor-files/internal/sddl"
+	"github.com/openbasalt/samba-conductor-files/filesapi"
+	"github.com/openbasalt/samba-conductor-files/internal/fsguard"
+	"github.com/openbasalt/samba-conductor-files/internal/samba"
+	"github.com/openbasalt/samba-conductor-files/internal/sddl"
 )
 
 // Check names (also the i18n keys in conductor).

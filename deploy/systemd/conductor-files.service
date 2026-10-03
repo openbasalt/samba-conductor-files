@@ -13,7 +13,7 @@
 #   ReadWritePaths=/srv/shares
 [Unit]
 Description=Samba Conductor file server agent
-Documentation=https://github.com/samba-conductor/conductor-files/blob/main/docs/install.md
+Documentation=https://github.com/openbasalt/samba-conductor-files/blob/main/docs/install.md
 After=network-online.target smbd.service winbind.service
 Wants=network-online.target
 

@@ -1,4 +1,4 @@
-module github.com/samba-conductor/conductor-files
+module github.com/openbasalt/samba-conductor-files
 
 go 1.27.0
 

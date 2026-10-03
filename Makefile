@@ -1,6 +1,9 @@
-# Quality gates and builds for conductor-files. GOWORK=off: the module is
-# checked on its own.
-export GOWORK := off
+# Quality gates and builds for conductor-files.
+# GOWORK=off by default: the module is checked on its own, against the
+# versions go.mod pins (what CI and release builds use), not through a
+# family go.work; `make check GOWORK=$PWD/../go.work` checks it against
+# local copies of the sibling modules instead.
+export GOWORK ?= off
 GOBIN := $(shell go env GOPATH)/bin
 STATICCHECK := $(GOBIN)/staticcheck
 GOVULNCHECK := $(GOBIN)/govulncheck
@@ -32,7 +35,7 @@ staticcheck: tools
 vulncheck: tools
 	$(GOVULNCHECK) ./...
 
-# Integration tests on fs1 in the main lab (server-home): scripts/lab-test.sh.
+# Integration tests on fs1 in the main lab (the lab host): scripts/lab-test.sh.
 lab-test:
 	./scripts/lab-test.sh
 

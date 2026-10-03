@@ -18,7 +18,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/samba-conductor/conductor-files/filesapi"
+	"github.com/openbasalt/samba-conductor-files/filesapi"
 )
 
 var (

@@ -13,11 +13,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/samba-conductor/conductor-files/filesapi"
-	"github.com/samba-conductor/conductor-files/internal/audit"
-	"github.com/samba-conductor/conductor-files/internal/config"
-	"github.com/samba-conductor/conductor-files/internal/fsguard"
-	"github.com/samba-conductor/conductor-files/internal/samba"
+	"github.com/openbasalt/samba-conductor-files/filesapi"
+	"github.com/openbasalt/samba-conductor-files/internal/audit"
+	"github.com/openbasalt/samba-conductor-files/internal/config"
+	"github.com/openbasalt/samba-conductor-files/internal/fsguard"
+	"github.com/openbasalt/samba-conductor-files/internal/samba"
 )
 
 var actor = filesapi.Actor{User: "lab.admin", SID: testDom + "-1104", Session: "0123456789abcdef", IP: "10.93.0.10"}

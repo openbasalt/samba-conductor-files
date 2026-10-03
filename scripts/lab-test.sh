@@ -2,7 +2,7 @@
 # Integration tests on fs1, the main lab's domain-member file server
 # (planning/docs/lab.md): build the agent and the test binary here, install
 # the agent on fs1 (planning/lab/files-install.sh), run the tests there as
-# root. The lab user password goes from server-home's secrets file to fs1
+# root. The lab user password goes from the lab host's secrets file to fs1
 # on stdin (0600 file, deleted afterwards), never on a command line.
 #
 #   scripts/lab-test.sh [-run REGEX]

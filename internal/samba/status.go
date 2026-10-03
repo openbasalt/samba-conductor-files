@@ -11,7 +11,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/samba-conductor/conductor-files/filesapi"
+	"github.com/openbasalt/samba-conductor-files/filesapi"
 )
 
 // ParseStatusJSON reads `smbstatus --json` (Samba >= 4.17).

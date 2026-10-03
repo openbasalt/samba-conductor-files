@@ -1,12 +1,12 @@
 # P2b in the lab: what was verified
 
-Lab: `../../planning/docs/lab.md` (server-home). fs1 = `conductor-lab-fs1`,
+Lab: `../../planning/docs/lab.md` (the lab host). fs1 = `conductor-lab-fs1`,
 10.93.0.20, Debian 13, Samba 4.22.11 member of `LAB.CONDUCTOR.TEST`
 (winbind, idmap rid), share root `/srv/shares`, conductor-files installed
 with the unit of `deploy/systemd` (the real sandbox).
 
 ```sh
-planning/lab/fs-up.sh          # the VM, snapshot member-base (on server-home)
+planning/lab/fs-up.sh          # the VM, snapshot member-base (on the lab host)
 planning/lab/fs-join.sh        # join (from member-base)
 make lab-test                  # from the laptop: build, install on fs1, run internal/labtest as root on fs1
 ```

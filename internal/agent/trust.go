@@ -12,7 +12,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/samba-conductor/conductor-files/filesapi"
+	"github.com/openbasalt/samba-conductor-files/filesapi"
 )
 
 // Conductor is a pinned client key (a conductor instance).

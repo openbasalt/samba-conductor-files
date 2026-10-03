@@ -56,6 +56,6 @@ conductor-files version
 ## Development
 
 `make check` (gofmt, vet, staticcheck, govulncheck, `go test -race`);
-`make lab-test` runs the integration tests on fs1 in the server-home lab
+`make lab-test` runs the integration tests on fs1 in the lab
 (`../planning/docs/lab.md`); `make package` builds the `.deb` for amd64 and
 arm64 with SBOMs in `dist/`, `make lintian` checks them.

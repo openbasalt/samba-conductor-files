@@ -10,8 +10,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/samba-conductor/conductor-files/internal/samba"
-	"github.com/samba-conductor/conductor-files/internal/sddl"
+	"github.com/openbasalt/samba-conductor-files/internal/samba"
+	"github.com/openbasalt/samba-conductor-files/internal/sddl"
 )
 
 const testDom = "S-1-5-21-100-200-300"
