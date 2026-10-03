@@ -1,0 +1,34 @@
+#!/bin/sh
+# postinst of conductor-files: directories and the systemd bookkeeping of
+# dh_installsystemd --no-enable --no-start --restart-after-upgrade. A fresh
+# install never enables or starts a unit (conductor-files needs its share
+# roots and checks first); an upgrade restarts only the units that are
+# running and keeps the administrator's enabled state.
+set -e
+
+ENABLE="conductor-files.service"
+RESTART="conductor-files.service"
+
+case "$1" in
+configure | abort-upgrade | abort-deconfigure | abort-remove)
+	if command -v deb-systemd-helper >/dev/null 2>&1; then
+		for unit in $ENABLE; do
+			if deb-systemd-helper debian-installed "$unit"; then
+				deb-systemd-helper unmask "$unit" >/dev/null || true
+				if deb-systemd-helper --quiet was-enabled "$unit"; then
+					deb-systemd-helper enable "$unit" >/dev/null || true
+				fi
+			fi
+			deb-systemd-helper update-state "$unit" >/dev/null || true
+		done
+	fi
+	if [ -z "${DPKG_ROOT:-}" ] && [ -d /run/systemd/system ]; then
+		systemctl --system daemon-reload >/dev/null || true
+		if [ -n "$2" ] && [ -n "$RESTART" ]; then
+			deb-systemd-invoke try-restart $RESTART >/dev/null || true
+		fi
+	fi
+	;;
+esac
+
+exit 0

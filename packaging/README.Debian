@@ -1,0 +1,27 @@
+conductor-files for Debian and Ubuntu
+=====================================
+
+conductor-files runs on a Samba domain-member file server, never on a
+domain controller. The package installs the agent, its unit and the
+conffile /etc/conductor-files/agent.toml (root 0644, roots = /srv/shares).
+It does not enable or start anything.
+
+  1. Join the server to the domain with "include = registry" and
+     "vfs objects = acl_xattr" (docs/install.md, section 1).
+  2. Create the share roots (root-owned, not writable by others) and list
+     them in agent.toml and in a drop-in, since the unit's file system is
+     read-only elsewhere:
+       sudo install -d /etc/systemd/system/conductor-files.service.d
+       printf '[Service]\nReadWritePaths=/srv/shares\n' | \
+         sudo tee /etc/systemd/system/conductor-files.service.d/roots.conf
+  3. sudo systemctl daemon-reload
+     sudo systemctl enable --now conductor-files
+     sudo conductor-files check
+  4. sudo conductor-files enroll-code, then add the server in conductor.
+
+Upgrades restart the agent when it is running. "apt purge conductor-files"
+deletes /etc/conductor-files, /var/lib/conductor-files (key pair, pinned
+conductor keys, audit log) and the roots.conf drop-in; shares and folders
+are left as they are.
+
+Full guide: https://github.com/openbasalt/samba-conductor-files/blob/main/docs/install.md

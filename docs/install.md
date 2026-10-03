@@ -75,6 +75,36 @@ inside another share whose users can write to its parent).
 
 ## 3. Install the agent
 
+### From the package (recommended)
+
+The project's APT repository is not published yet; until it is, install the
+`.deb` of a release directly (`apt install ./conductor-files_<version>_amd64.deb`,
+after checking it against the release's signed `SHA256SUMS`). Once the
+repository is published, add it as conductor's install doc shows
+(`/etc/apt/sources.list.d/samba-conductor.sources` with `Signed-By:`), then:
+
+```
+apt install conductor-files
+install -d -m 0755 -o root -g root /srv/shares
+editor /etc/conductor-files/agent.toml                 # roots, name (a conffile: upgrades keep your edits)
+install -d -m 0755 /etc/systemd/system/conductor-files.service.d
+printf '[Service]\nReadWritePaths=/srv/shares\n' > /etc/systemd/system/conductor-files.service.d/roots.conf
+systemctl daemon-reload
+systemctl enable --now conductor-files
+conductor-files check
+```
+
+The package installs `/usr/bin/conductor-files`, the unit
+(`/usr/lib/systemd/system/conductor-files.service`), the man page and the
+conffile `/etc/conductor-files/agent.toml` (root 0644). It does not enable
+or start the agent. Upgrades restart it when it is running and keep the
+configuration, the key pair and the pinned conductor keys (no new
+enrollment). `apt purge conductor-files` deletes `/etc/conductor-files`,
+`/var/lib/conductor-files` (key pair, trust, audit log) and the unit's
+drop-ins (`roots.conf`); shares in the registry and their folders stay.
+
+### From source
+
 ```
 install -m 0755 conductor-files /usr/local/bin/conductor-files
 install -m 0644 conductor-files.service /etc/systemd/system/

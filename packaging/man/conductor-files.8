@@ -1,0 +1,55 @@
+.TH CONDUCTOR-FILES 8 "2026-10-03" "Samba Conductor" "System Administration"
+.SH NAME
+conductor-files \- Samba Conductor agent for domain-member file servers
+.SH SYNOPSIS
+.B conductor-files
+.I command
+.RB [ \-\-config
+.IR FILE ]
+.RI [ args ]
+.SH DESCRIPTION
+.B conductor-files
+lets Samba Conductor manage the shares of a Samba domain-member file
+server: shares in the registry configuration (net conf), access by AD group
+SID applied as NT ACLs, and live sessions. It refuses to run on a domain
+controller. conductor connects over TLS 1.3 with both keys pinned; a
+conductor instance is trusted only after a one-time enrollment code made on
+the file server. The default configuration is
+.IR /etc/conductor-files/agent.toml .
+.SH COMMANDS
+.TP
+.B serve
+Run the agent (started by
+.BR conductor-files.service ).
+.TP
+.B enroll-code [\-\-ttl 1h] [\-\-quiet]
+Print a one-time enrollment code (as root).
+.TP
+.B enroll-cancel
+Cancel the outstanding code.
+.TP
+.B trust list | trust remove PIN
+Pinned conductor keys.
+.TP
+.B check
+Check the prerequisites (every line must be ok).
+.TP
+.B audit verify
+Check the hash-chained audit log.
+.TP
+.B version
+Print the version.
+.SH FILES
+.TP
+.I /etc/conductor-files/agent.toml
+Configuration.
+.TP
+.I /etc/systemd/system/conductor-files.service.d/roots.conf
+Drop-in that makes the share roots writable for the unit.
+.TP
+.I /var/lib/conductor-files/
+Key pair, pinned keys, outstanding code, audit log.
+.SH SEE ALSO
+.BR conductor (8),
+.BR net (8),
+.BR smb.conf (5)

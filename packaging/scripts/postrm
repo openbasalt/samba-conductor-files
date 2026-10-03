@@ -1,0 +1,32 @@
+#!/bin/sh
+# postrm of conductor-files. Purge deletes the configuration, the agent's key
+# pair and pinned conductor keys (a reinstall must enroll again), its audit
+# log, the drop-ins of its unit (roots.conf), and the bookkeeping. Shares
+# in Samba's registry and their folders are not touched.
+set -e
+
+ENABLE="conductor-files.service"
+
+case "$1" in
+remove)
+	if [ -z "${DPKG_ROOT:-}" ] && [ -d /run/systemd/system ]; then
+		systemctl --system daemon-reload >/dev/null || true
+	fi
+	if command -v deb-systemd-helper >/dev/null 2>&1; then
+		deb-systemd-helper mask $ENABLE >/dev/null || true
+	fi
+	;;
+purge)
+	if command -v deb-systemd-helper >/dev/null 2>&1; then
+		deb-systemd-helper purge $ENABLE >/dev/null || true
+		deb-systemd-helper unmask $ENABLE >/dev/null || true
+	fi
+	rm -rf /etc/systemd/system/conductor-files.service.d
+	rm -rf /etc/conductor-files /var/lib/conductor-files
+	if [ -z "${DPKG_ROOT:-}" ] && [ -d /run/systemd/system ]; then
+		systemctl --system daemon-reload >/dev/null || true
+	fi
+	;;
+esac
+
+exit 0
