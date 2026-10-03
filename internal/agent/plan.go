@@ -205,7 +205,8 @@ func (a *Agent) planShare(ctx context.Context, spec filesapi.ShareSpec, create b
 	if !create {
 		spec.Name = cur.Name // keep the stored spelling
 	}
-	var problems, warnings []string
+	var problems []string
+	var warnings []filesapi.Warning
 	for p, name := range v.paths() {
 		if strings.EqualFold(name, spec.Name) {
 			continue
@@ -214,9 +215,9 @@ func (a *Agent) planShare(ctx context.Context, spec filesapi.ShareSpec, create b
 		case p == spec.Path:
 			problems = append(problems, fmt.Sprintf("path: %s is already shared as %q", p, name))
 		case strings.HasPrefix(spec.Path, p+"/"):
-			warnings = append(warnings, fmt.Sprintf("The folder is inside the folder of share %q.", name))
+			warnings = append(warnings, filesapi.Warning{Code: filesapi.WarnInsideShare, Arg: name})
 		case strings.HasPrefix(p, spec.Path+"/"):
-			warnings = append(warnings, fmt.Sprintf("The folder contains the folder of share %q.", name))
+			warnings = append(warnings, filesapi.Warning{Code: filesapi.WarnContainsShare, Arg: name})
 		}
 	}
 	if spec.CreateDir {
@@ -312,10 +313,10 @@ func (a *Agent) planShare(ctx context.Context, spec filesapi.ShareSpec, create b
 		NTACL: filesapi.ACLChange{Before: aces(ntBeforeSD.DACL, names, sddl.FileRights), After: aces(ntAfter.DACL, names, sddl.FileRights),
 			Changed: ntChanged, SDDL: ntAfter.String()}}
 	if !create && cur.Path != spec.Path {
-		pl.Warnings = append(pl.Warnings, "The share moves to another folder; the old folder and its permissions are kept.")
+		pl.Warnings = append(pl.Warnings, filesapi.Warning{Code: filesapi.WarnMoved, Arg: cur.Path})
 	}
 	if !create && ntChanged {
-		pl.Warnings = append(pl.Warnings, "Files and folders already inside keep their own permissions; the share permissions apply to all of them at once.")
+		pl.Warnings = append(pl.Warnings, filesapi.Warning{Code: filesapi.WarnExistingContent})
 	}
 
 	var steps []step
@@ -385,7 +386,7 @@ func (a *Agent) planRemove(ctx context.Context, name string) (planned, *filesapi
 	names := a.namer(ctx)
 	pl := filesapi.Plan{Kind: "remove", Name: cur.Name, Path: cur.Path, SectionBefore: samba.RenderSection(regSec),
 		ShareACL: filesapi.ACLChange{Before: aces(before, names, sddl.ShareRights), After: []filesapi.ACE{}, Changed: true},
-		Warnings: []string{"The folder " + cur.Path + " and its files are kept, with their permissions."}}
+		Warnings: []filesapi.Warning{{Code: filesapi.WarnFolderKept, Arg: cur.Path}}}
 	steps := []step{}
 	// sharesec needs the share to exist, so its descriptor goes first (a
 	// stale descriptor would otherwise apply to a future share of the same

@@ -420,12 +420,28 @@ type Plan struct {
 	ShareACL      ACLChange `json:"share_acl"`
 	NTACL         ACLChange `json:"nt_acl"`
 	// Commands are the exact programs and arguments run, in order.
-	Commands []string `json:"commands"`
-	Warnings []string `json:"warnings,omitempty"`
+	Commands []string  `json:"commands"`
+	Warnings []Warning `json:"warnings,omitempty"`
 	// NoChange: nothing would be written.
 	NoChange bool `json:"no_change,omitempty"`
 	// Digest binds the apply to this plan (spec + current state).
 	Digest string `json:"digest"`
+}
+
+// Warning codes of a plan (conductor translates them; Arg is a share name
+// or a path).
+const (
+	WarnInsideShare     = "inside_share"     // the folder is inside another share's folder
+	WarnContainsShare   = "contains_share"   // the folder contains another share's folder
+	WarnMoved           = "moved"            // the share points to another folder; the old one is kept
+	WarnExistingContent = "existing_content" // existing content keeps its own permissions
+	WarnFolderKept      = "folder_kept"      // a removed share's folder and files are kept
+)
+
+// Warning is something the administrator should know before applying.
+type Warning struct {
+	Code string `json:"code"`
+	Arg  string `json:"arg,omitempty"`
 }
 
 // ApplyResult tells what an apply did.

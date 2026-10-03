@@ -51,7 +51,7 @@ conductor-files version
 - `docs/install.md`: preparing a member server, installing, enrolling,
   revoking.
 - `docs/usage-p2b.md`: what was verified in the lab.
-- `docs/decisions.md`: design decisions.
+- `../planning/docs/decisions.md` (P2b): design decisions.
 
 ## Development
 
