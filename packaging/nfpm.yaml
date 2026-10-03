@@ -13,7 +13,7 @@ priority: optional
 maintainer: Samba Conductor maintainers <samba-conductor@openbasalt.org>
 vendor: OpenBasalt
 homepage: https://github.com/openbasalt/samba-conductor-files
-license: MIT
+license: Apache-2.0
 description: |-
   Samba Conductor agent for domain-member file servers
   conductor-files runs on a Samba domain-member file server (never on a
@@ -54,6 +54,13 @@ contents:
     file_info: {mode: 0644}
   - src: packaging/copyright
     dst: /usr/share/doc/conductor-files/copyright
+    file_info: {mode: 0644}
+  - src: NOTICE
+    dst: /usr/share/doc/conductor-files/NOTICE
+    file_info: {mode: 0644}
+  - expand: true
+    src: ${BUILD}/doc/conductor-files/THIRD-PARTY-LICENSES.gz
+    dst: /usr/share/doc/conductor-files/THIRD-PARTY-LICENSES.gz
     file_info: {mode: 0644}
   - expand: true
     src: ${BUILD}/doc/conductor-files/changelog.Debian.gz

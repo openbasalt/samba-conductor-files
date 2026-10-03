@@ -59,3 +59,5 @@ conductor-files version
 `make lab-test` runs the integration tests on fs1 in the lab
 (`../planning/docs/lab.md`); `make package` builds the `.deb` for amd64 and
 arm64 with SBOMs in `dist/`, `make lintian` checks them.
+
+License: Apache-2.0 ([LICENSE](LICENSE), [NOTICE](NOTICE)).
