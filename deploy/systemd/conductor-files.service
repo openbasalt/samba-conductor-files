@@ -1,0 +1,60 @@
+# Samba Conductor file server agent: shares in the registry configuration
+# (net conf), NT ACLs by AD group SID, live sessions. Domain-member file
+# servers only (it refuses to start on a domain controller). Serves only
+# conductor instances whose client key was enrolled (pinned).
+#
+# Runs as root (the registry configuration, security.NTACL and POSIX ACLs
+# need it) with a narrow capability set and a read-only system, writable
+# only where Samba keeps its state, the agent's own state and the share
+# roots (add the roots in a drop-in, see docs/install.md):
+#
+#   # /etc/systemd/system/conductor-files.service.d/roots.conf
+#   [Service]
+#   ReadWritePaths=/srv/shares
+[Unit]
+Description=Samba Conductor file server agent
+Documentation=https://github.com/samba-conductor/conductor-files/blob/main/docs/install.md
+After=network-online.target smbd.service winbind.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/conductor-files serve --config /etc/conductor-files/agent.toml
+Restart=on-failure
+RestartSec=5s
+
+StateDirectory=conductor-files
+StateDirectoryMode=0700
+UMask=0077
+
+# CHOWN, FOWNER, DAC_*: directories and ACLs of folders owned by others;
+# SYS_ADMIN: the security.NTACL extended attribute.
+CapabilityBoundingSet=CAP_CHOWN CAP_DAC_OVERRIDE CAP_DAC_READ_SEARCH CAP_FOWNER CAP_SYS_ADMIN
+AmbientCapabilities=
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/samba /var/cache/samba /run/samba
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectHostname=yes
+ProtectClock=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectProc=invisible
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RemoveIPC=no
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+ReadOnlyPaths=/etc/conductor-files /etc/samba
+
+[Install]
+WantedBy=multi-user.target

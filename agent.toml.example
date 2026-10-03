@@ -1,0 +1,39 @@
+# conductor-files agent configuration (/etc/conductor-files/agent.toml),
+# owned by root, mode 0644. Requests from conductor can only choose among
+# what this file allows.
+
+[server]
+# TCP address conductor connects to (TLS 1.3, both keys pinned).
+listen = ":7443"
+# Host name reported to conductor (default: the system host name).
+# name = "fs1.example.com"
+
+[shares]
+# Shares are created only strictly below these directories. Each root must
+# be a real directory owned by root and not writable by group or others.
+roots = ["/srv/shares"]
+
+# Optional: "previous versions" through vfs_shadow_copy2. Only offered when
+# the file system takes snapshots with this naming (btrfs, ZFS, LVM).
+# [shadow_copies]
+# snapdir = ".snapshots"
+# format = "@GMT-%Y.%m.%d-%H.%M.%S"
+# sort = "desc"
+# localtime = false
+
+# [samba]
+# net = "/usr/bin/net"
+# sharesec = "/usr/bin/sharesec"
+# samba_tool = "/usr/bin/samba-tool"
+# smbstatus = "/usr/bin/smbstatus"
+# smbcontrol = "/usr/bin/smbcontrol"
+# wbinfo = "/usr/bin/wbinfo"
+# testparm = "/usr/bin/testparm"
+
+# [state]
+# dir = "/var/lib/conductor-files"
+# smb_conf = "/etc/samba/smb.conf"
+
+# [enrollment]
+# ttl = "1h"
+# max_failures = 5
