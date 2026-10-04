@@ -7,7 +7,7 @@
 addFilter(r"statically-linked-binary /usr/bin/conductor-files")
 # Not position independent: the Go linker's default executable mode, the
 # same binary as the .deb (building with -buildmode=pie is an open decision,
-# planning/docs/packaging.md).
+# https://github.com/openbasalt/samba-conductor-docs/blob/main/packaging.md).
 addFilter(r"position-independent-executable-suggested /usr/bin/conductor-files")
 # The SELinux scriptlets are Fedora's own %selinux_relabel_pre/_post and
 # %selinux_modules_uninstall macros: a copy of the file contexts is taken

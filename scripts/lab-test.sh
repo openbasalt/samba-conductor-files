@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
+# Maintainer lab tooling: it needs the family checkout with the lab
+# scripts (planning/lab), which are not published; the lab is described in
+# https://github.com/openbasalt/samba-conductor-docs/blob/main/testing.md
 # Integration tests on fs1, the main lab's domain-member file server
-# (planning/docs/lab.md): build the agent and the test binary here, install
+# (https://github.com/openbasalt/samba-conductor-docs/blob/main/testing.md): build the agent and the test binary here, install
 # the agent on fs1 (planning/lab/files-install.sh), run the tests there as
 # root. The lab user password goes from the lab host's secrets file to fs1
 # on stdin (0600 file, deleted afterwards), never on a command line.
@@ -8,7 +11,7 @@
 #   scripts/lab-test.sh [-run REGEX]
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
-LAB_HOST="${LAB_HOST:-server-home}"
+LAB_HOST="${LAB_HOST:?set LAB_HOST to the SSH destination of the lab host}"
 make build >/dev/null
 GOWORK=off CGO_ENABLED=0 go test -c -tags lab -o bin/lab/labtest.test ./internal/labtest/
 stage="$(mktemp -d)"

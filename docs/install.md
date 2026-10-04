@@ -2,9 +2,9 @@
 
 Basalt OS and Fedora (RPM packages, SELinux): `install-fedora.md`.
 
-conductor-files runs on a **Samba domain-member file server**, never on a
+conductor-files runs on a Samba domain-member file server, never on a
 domain controller. These steps were followed in the lab on Debian 13 with
-Samba 4.22 (`planning/lab/fs-up.sh`, `fs-join.sh`, `files-install.sh`).
+Samba 4.22 (`lab/fs-up.sh`, `fs-join.sh`, `files-install.sh`).
 
 ## 1. The member server
 
@@ -141,15 +141,15 @@ conductor-files enroll-code
 ```
 
 It prints a one-time code (`cfe1.<token>.<key>`, valid 1 hour, single use;
-five wrong attempts cancel it). In conductor: **File servers → Add a file
-server**, the server's address (`fs1.example.com` or `fs1.example.com:7443`)
+five wrong attempts cancel it). In conductor: File servers → Add a file
+server, the server's address (`fs1.example.com` or `fs1.example.com:7443`)
 and the code; review and confirm with your second factor. conductor pins the
 agent's key from the code; the agent pins conductor's key. On the file
 server `conductor-files trust list` shows the enrolled conductor.
 
 ## 5. Revoking
 
-- From conductor: the server page → **Remove** (second factor). conductor
+- From conductor: the server page → Remove (second factor). conductor
   tells the agent to drop its key and forgets the server.
 - On the file server: `conductor-files trust remove sha256:<pin>` (from
   `trust list`). conductor's calls then fail at the TLS handshake.

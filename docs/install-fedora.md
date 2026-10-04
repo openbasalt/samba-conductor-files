@@ -1,10 +1,10 @@
 # Installing conductor-files on Basalt OS / Fedora
 
-The conductor-files agent on a **Basalt OS** (Fedora 44 based, SELinux
-enforcing) or **Fedora 44** domain-member file server, from the RPM
+The conductor-files agent on a Basalt OS (Fedora 44 based, SELinux
+enforcing) or Fedora 44 domain-member file server, from the RPM
 packages. The steps are those of `docs/install.md`; this page lists what
-differs. The Basalt OS package lab (`../planning/lab/basaltlab/` in the
-planning repository) runs them with SELinux enforcing, plus the agent's
+differs. The Basalt OS package lab (see
+[testing.md](https://github.com/openbasalt/samba-conductor-docs/blob/main/testing.md)) runs them with SELinux enforcing, plus the agent's
 lab test (enrollment, shares with NT ACLs by AD group, SMB access as domain
 users, live sessions, adopting a share made by hand).
 

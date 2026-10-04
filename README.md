@@ -1,9 +1,10 @@
 # conductor-files
 
-File shares on Samba **domain-member file servers**, managed from Samba
+File shares on Samba domain-member file servers, managed from Samba
 Conductor's admin UI ("share a directory on the network from the admin
-screen"). Part of Samba Conductor v2; design: `../planning/docs/architecture.md`
-§6, phase spec: `../planning/docs/p2b-spec.md`.
+screen"). Part of Samba Conductor v2; design:
+[docs/design.md](docs/design.md) and the family's
+[architecture.md](https://github.com/openbasalt/samba-conductor-docs/blob/main/architecture.md).
 
 `conductor-files` is a small agent installed on each file server. Conductor
 (the web UI on the DC) drives it over mutually pinned TLS; administrators
@@ -16,8 +17,8 @@ their second factor.
 | | |
 |---|---|
 | Where | Samba member servers (`security = ADS`, winbind). It refuses to start on a domain controller: DCs should host only sysvol and netlogon |
-| Shares | Samba's **registry configuration** (`net conf import`, one section replaced in a transaction); `smb.conf` is never edited; only shares it created (marked `conductor-files:managed = yes`) are changed or removed, others are listed read-only |
-| Access | by **AD group SID** (resolved through winbind): an NT ACL on the share folder (`samba-tool ntacl set --use-s3fs`, so Samba writes security.NTACL and the matching POSIX ACLs) and the same groups as share permissions (`sharesec`). SYSTEM, Administrators and Domain Admins always have full control |
+| Shares | Samba's registry configuration (`net conf import`, one section replaced in a transaction); `smb.conf` is never edited; only shares it created (marked `conductor-files:managed = yes`) are changed or removed, others are listed read-only |
+| Access | by AD group SID (resolved through winbind): an NT ACL on the share folder (`samba-tool ntacl set --use-s3fs`, so Samba writes security.NTACL and the matching POSIX ACLs) and the same groups as share permissions (`sharesec`). SYSTEM, Administrators and Domain Admins always have full control |
 | Options | browseable, access-based enumeration, recycle bin (`vfs_recycle`), previous versions (`vfs_shadow_copy2`, only when the host has a snapshot profile) |
 | Sessions | `smbstatus --json`: sessions, connections, open files |
 | Removal | the share and its share permissions go; the folder and its files stay |
@@ -52,13 +53,13 @@ conductor-files version
 - `docs/install.md`: preparing a member server, installing, enrolling,
   revoking.
 - `docs/usage-p2b.md`: what was verified in the lab.
-- `../planning/docs/decisions.md` (P2b): design decisions.
+- [design.md](docs/design.md): design and decisions.
 
 ## Development
 
 `make check` (gofmt, vet, staticcheck, govulncheck, `go test -race`);
 `make lab-test` runs the integration tests on fs1 in the lab
-(`../planning/docs/lab.md`); `make package` builds the `.deb` for amd64 and
+([testing.md](https://github.com/openbasalt/samba-conductor-docs/blob/main/testing.md)); `make package` builds the `.deb` for amd64 and
 arm64 with SBOMs in `dist/`, `make lintian` checks them.
 
 License: Apache-2.0 ([LICENSE](LICENSE), [NOTICE](NOTICE)).
