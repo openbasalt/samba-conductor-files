@@ -1,6 +1,9 @@
 package samba
 
 import (
+	"os"
+	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -83,5 +86,27 @@ func TestParseStatusJSON(t *testing.T) {
 	}
 	if _, _, _, err := ParseStatusJSON([]byte("no json")); err == nil {
 		t.Fatal("no json parsed")
+	}
+}
+
+func TestMissing(t *testing.T) {
+	dir := t.TempDir()
+	exe := filepath.Join(dir, "tool")
+	if err := os.WriteFile(exe, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	plain := filepath.Join(dir, "plain")
+	if err := os.WriteFile(plain, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	p := Paths{Net: exe, Sharesec: exe, SambaTool: filepath.Join(dir, "absent"), Smbstatus: plain, Smbcontrol: dir, Wbinfo: exe, Testparm: exe}
+	got := Tools{P: p}.Missing()
+	want := []string{p.SambaTool, plain, dir}
+	if !slices.Equal(got, want) {
+		t.Fatalf("Missing() = %v, want %v", got, want)
+	}
+	p.SambaTool, p.Smbstatus, p.Smbcontrol = exe, exe, exe
+	if got := (Tools{P: p}).Missing(); got != nil {
+		t.Fatalf("Missing() = %v, want none", got)
 	}
 }

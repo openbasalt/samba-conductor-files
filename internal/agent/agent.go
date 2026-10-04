@@ -55,6 +55,8 @@ type Samba interface {
 	ShareSecDeleteArgs(share string) []string
 	NTACLSetArgs(sddl, path string) []string
 	ReloadArgs() []string
+	// Missing lists the Samba programs that are not installed.
+	Missing() []string
 }
 
 // Agent serves conductor.

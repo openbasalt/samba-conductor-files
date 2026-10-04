@@ -260,8 +260,14 @@ func TestPlanRefusals(t *testing.T) {
 		t.Fatalf("DC check: %v", err)
 	}
 	e.f.role = "member server"
-	_ = os.WriteFile(e.a.cfg.State.SmbConf, []byte("[global]\n\tsecurity = ADS\n"), 0o644)
+	e.f.missing = []string{"/usr/bin/samba-tool"}
 	err := wantCode(t, e.call(t, filesapi.OpSharePlan, filesapi.SharePlanParams{Spec: e.spec(), Create: true}, nil), filesapi.CodeUnavailable)
+	if !strings.Contains(strings.Join(err.Details, " "), CheckTools+": not installed: /usr/bin/samba-tool") {
+		t.Fatalf("details %v", err.Details)
+	}
+	e.f.missing = nil
+	_ = os.WriteFile(e.a.cfg.State.SmbConf, []byte("[global]\n\tsecurity = ADS\n"), 0o644)
+	err = wantCode(t, e.call(t, filesapi.OpSharePlan, filesapi.SharePlanParams{Spec: e.spec(), Create: true}, nil), filesapi.CodeUnavailable)
 	if !strings.Contains(strings.Join(err.Details, " "), CheckRegistry) {
 		t.Fatalf("details %v", err.Details)
 	}

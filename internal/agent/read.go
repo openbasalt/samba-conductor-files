@@ -22,6 +22,7 @@ const (
 	CheckACLXattr  = "acl_xattr"
 	CheckRoots     = "roots"
 	CheckSmbstatus = "smbstatus_json"
+	CheckTools     = "samba_tools"
 )
 
 // managedKey marks the registry shares conductor-files owns.
@@ -89,6 +90,11 @@ func (a *Agent) Status(ctx context.Context) filesapi.Status {
 		}
 	}
 	add(CheckRoots, errors.Join(rootErrs...), strings.Join(a.cfg.Shares.Roots, ", "))
+	var toolsErr error
+	if m := a.sb.Missing(); len(m) > 0 {
+		toolsErr = fmt.Errorf("not installed: %s (install the packages conductor-files recommends)", strings.Join(m, ", "))
+	}
+	add(CheckTools, toolsErr, "")
 	_, err = a.sb.StatusJSON(ctx)
 	add(CheckSmbstatus, err, "")
 	return st

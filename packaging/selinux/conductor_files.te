@@ -104,6 +104,14 @@ gen_require(`
 	type smbcontrol_exec_t;
 ')
 can_exec(conductor_files_t, smbcontrol_exec_t)
+# "smbcontrol smbd reload-config": smbd's pid file (/run/smbd.pid, read
+# under a lock), a liveness check, then a message on smbd's datagram socket.
+gen_require(`
+	type smbd_t, smbd_var_run_t;
+')
+allow conductor_files_t smbd_var_run_t:file { read_file_perms lock };
+samba_signull_smbd(conductor_files_t)
+allow conductor_files_t smbd_t:unix_dgram_socket sendto;
 
 ########################################
 #
@@ -135,3 +143,13 @@ allow conductor_files_t init_var_run_t:file read_file_perms;
 
 # SQLite in WAL mode maps its shared-memory index (<db>-shm).
 allow conductor_files_t conductor_files_var_lib_t:file map;
+
+# systemd removes the unit's private /tmp (PrivateTmp=) when the service
+# stops, with whatever the service left in it.
+gen_require(`
+	type init_t;
+')
+list_dirs_pattern(init_t, conductor_files_tmp_t, conductor_files_tmp_t)
+delete_dirs_pattern(init_t, conductor_files_tmp_t, conductor_files_tmp_t)
+delete_files_pattern(init_t, conductor_files_tmp_t, conductor_files_tmp_t)
+delete_sock_files_pattern(init_t, conductor_files_tmp_t, conductor_files_tmp_t)

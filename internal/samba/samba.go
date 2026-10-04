@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"regexp"
 	"strconv"
@@ -106,6 +107,19 @@ func (r ExecRunner) Run(ctx context.Context, prog string, args ...string) ([]byt
 type Tools struct {
 	P Paths
 	R Runner
+}
+
+// Missing lists the configured tools that are not executable regular
+// files: a package is missing (on Fedora samba-tool is in samba-tools).
+func (t Tools) Missing() []string {
+	var out []string
+	for _, p := range []string{t.P.Net, t.P.Sharesec, t.P.SambaTool, t.P.Smbstatus, t.P.Smbcontrol, t.P.Wbinfo, t.P.Testparm} {
+		st, err := os.Stat(p)
+		if err != nil || !st.Mode().IsRegular() || st.Mode().Perm()&0o111 == 0 {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 // ---- configuration (testparm, net conf) ----

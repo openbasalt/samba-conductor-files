@@ -23,6 +23,7 @@ key sha256:<agent pin>
   ok   acl_xattr        acl_xattr
   ok   roots            /srv/shares
   ok   smbstatus_json
+  ok   samba_tools
 ```
 
 ## Integration tests (`internal/labtest`, 2026-10-03: all passed, ~30 s)

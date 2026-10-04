@@ -54,12 +54,15 @@ overrides:
   rpm:
     depends:
       # The SELinux policy wherever the targeted policy is installed
-      # (Fedora, Basalt OS): installed first, so the files get their labels.
-      - (conductor-files-selinux if selinux-policy-targeted)
+      # (Fedora, Basalt OS): installed first, so the files get their labels;
+      # the same version, so an upgrade of the package upgrades its policy.
+      - (conductor-files-selinux = ${PKG_VERSION}-${PKG_REVISION} if selinux-policy-targeted)
     recommends:
       - samba
       - samba-winbind
       - samba-common-tools
+      # samba-tool (NT ACLs) is in samba-tools on Fedora, not in samba-dc-provision.
+      - samba-tools
       - python3-samba
       - acl
       - attr

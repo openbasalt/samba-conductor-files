@@ -11,9 +11,10 @@ users, live sessions, adopting a share made by hand).
 ## 1. The member server
 
 Fedora's packages: `samba samba-winbind samba-winbind-clients
-samba-common-tools samba-client python3-samba samba-dc-provision
-krb5-workstation acl attr` (`samba-dc-provision` brings `samba-tool`, used
-for NT ACLs). `smb.conf` and the join as in `docs/install.md`; the name
+samba-common-tools samba-tools samba-client python3-samba
+krb5-workstation acl attr` (`samba-tools` brings `samba-tool`, used for NT
+ACLs; the `conductor-files` package recommends it, so dnf installs it with
+the agent unless weak dependencies are turned off). `smb.conf` and the join as in `docs/install.md`; the name
 service switch through authselect:
 
 ```sh

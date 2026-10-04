@@ -36,6 +36,7 @@ type fakeSamba struct {
 	ran      []string
 	failOn   string
 	reloads  int
+	missing  []string
 }
 
 func newFake() *fakeSamba {
@@ -123,6 +124,8 @@ func (f *fakeSamba) Domain(context.Context) (samba.DomainInfo, error) {
 }
 
 func (f *fakeSamba) TrustOK(context.Context) error { return nil }
+
+func (f *fakeSamba) Missing() []string { return f.missing }
 
 func (f *fakeSamba) StatusJSON(context.Context) ([]byte, error) {
 	return []byte(`{"sessions": {}, "tcons": {}, "open_files": {}}`), nil
