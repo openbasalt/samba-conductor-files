@@ -1,0 +1,5 @@
+; Port label of the conductor-files agent (conductor-files-selinux). A .te
+; module cannot declare port labels; this CIL module does, for the type the
+; conductor_files module declares: TCP 7443, the agent's default "listen".
+; Another port: semanage port -a -t conductor_files_port_t -p tcp <port>.
+(portcon tcp 7443 (system_u object_r conductor_files_port_t ((s0) (s0))))

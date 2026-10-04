@@ -1,0 +1,7 @@
+# File contexts of the conductor_files policy module (conductor-files-selinux).
+/usr/bin/conductor-files		--	gen_context(system_u:object_r:conductor_files_exec_t,s0)
+/usr/local/bin/conductor-files		--	gen_context(system_u:object_r:conductor_files_exec_t,s0)
+
+/etc/conductor-files(/.*)?			gen_context(system_u:object_r:conductor_files_conf_t,s0)
+
+/var/lib/conductor-files(/.*)?			gen_context(system_u:object_r:conductor_files_var_lib_t,s0)

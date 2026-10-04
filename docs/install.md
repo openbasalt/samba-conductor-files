@@ -1,5 +1,7 @@
 # Installing conductor-files on a file server
 
+Basalt OS and Fedora (RPM packages, SELinux): `install-fedora.md`.
+
 conductor-files runs on a **Samba domain-member file server**, never on a
 domain controller. These steps were followed in the lab on Debian 13 with
 Samba 4.22 (`planning/lab/fs-up.sh`, `fs-join.sh`, `files-install.sh`).

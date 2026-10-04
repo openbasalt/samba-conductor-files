@@ -1,13 +1,17 @@
-# nfpm configuration of the "conductor-files" package. Built by
-# packaging/build.sh, which sets ARCH, DEB_VERSION, DEB_REVISION, BUILD
-# (staging directory) and SOURCE_DATE_EPOCH (every timestamp). Paths are
-# relative to the repository root.
+# nfpm configuration of the "conductor-files" package, one file for the .deb
+# and the .rpm. Built by packaging/build.sh, which sets ARCH, PKG_VERSION,
+# PKG_REVISION, BUILD (staging directory) and SOURCE_DATE_EPOCH (every
+# timestamp). Paths are relative to the repository root. Entries marked
+# "packager: deb" or "packager: rpm" exist in one format only (Debian keeps
+# docs and licenses in /usr/share/doc and sets modes in postinst; Fedora
+# keeps licenses in /usr/share/licenses and owns its directories in the
+# payload).
 name: conductor-files
 arch: ${ARCH}
 platform: linux
-version: ${DEB_VERSION}
+version: ${PKG_VERSION}
 version_schema: none
-release: ${DEB_REVISION}
+release: ${PKG_REVISION}
 section: admin
 priority: optional
 maintainer: Samba Conductor maintainers <samba-conductor@openbasalt.org>
@@ -23,8 +27,8 @@ description: |-
   both keys pinned after a one-time enrollment code made on the file server;
   every change is previewed, confirmed and audited on both sides.
   .
-  Nothing is started at installation (see
-  /usr/share/doc/conductor-files/README.Debian).
+  Nothing is started at installation (see the README in
+  /usr/share/doc/conductor-files).
 
 recommends:
   - samba (>= 2:4.19)
@@ -35,6 +39,35 @@ recommends:
   - acl
   - attr
 
+rpm:
+  summary: Samba Conductor agent for domain-member file servers
+  group: Applications/System
+  buildhost: build.samba-conductor.openbasalt.org
+  compression: zstd
+
+overrides:
+  deb:
+    scripts:
+      postinstall: packaging/scripts/postinst
+      preremove: packaging/scripts/prerm
+      postremove: packaging/scripts/postrm
+  rpm:
+    depends:
+      # The SELinux policy wherever the targeted policy is installed
+      # (Fedora, Basalt OS): installed first, so the files get their labels.
+      - (conductor-files-selinux if selinux-policy-targeted)
+    recommends:
+      - samba
+      - samba-winbind
+      - samba-common-tools
+      - python3-samba
+      - acl
+      - attr
+    scripts:
+      postinstall: packaging/rpm/post
+      preremove: packaging/rpm/preun
+      postremove: packaging/rpm/postun
+
 contents:
   - expand: true
     src: ${BUILD}/bin/conductor-files
@@ -44,36 +77,84 @@ contents:
     src: ${BUILD}/systemd/conductor-files.service
     dst: /usr/lib/systemd/system/conductor-files.service
     file_info: {mode: 0644}
+  # Configuration (root 0644 in both formats; the agent runs as root). The
+  # RPM owns its directory.
+  - dst: /etc/conductor-files
+    type: dir
+    packager: rpm
+    file_info: {mode: 0755}
   - src: agent.toml.example
     dst: /etc/conductor-files/agent.toml
     type: config|noreplace
     file_info: {mode: 0644}
+  # A plain file in the .deb, a documentation file (%doc) in the .rpm.
   - expand: true
     src: ${BUILD}/man/conductor-files.8.gz
     dst: /usr/share/man/man8/conductor-files.8.gz
+    packager: deb
     file_info: {mode: 0644}
+  - expand: true
+    src: ${BUILD}/man/conductor-files.8.gz
+    dst: /usr/share/man/man8/conductor-files.8.gz
+    type: doc
+    packager: rpm
+    file_info: {mode: 0644}
+  # Debian documentation and licenses.
   - src: packaging/copyright
     dst: /usr/share/doc/conductor-files/copyright
+    packager: deb
     file_info: {mode: 0644}
   - src: NOTICE
     dst: /usr/share/doc/conductor-files/NOTICE
+    packager: deb
     file_info: {mode: 0644}
   - expand: true
     src: ${BUILD}/doc/conductor-files/THIRD-PARTY-LICENSES.gz
     dst: /usr/share/doc/conductor-files/THIRD-PARTY-LICENSES.gz
+    packager: deb
     file_info: {mode: 0644}
   - expand: true
     src: ${BUILD}/doc/conductor-files/changelog.Debian.gz
     dst: /usr/share/doc/conductor-files/changelog.Debian.gz
+    packager: deb
     file_info: {mode: 0644}
   - src: packaging/README.Debian
     dst: /usr/share/doc/conductor-files/README.Debian
+    packager: deb
     file_info: {mode: 0644}
   - src: packaging/lintian-overrides
     dst: /usr/share/lintian/overrides/conductor-files
+    packager: deb
     file_info: {mode: 0644}
 
-scripts:
-  postinstall: packaging/scripts/postinst
-  preremove: packaging/scripts/prerm
-  postremove: packaging/scripts/postrm
+  # Fedora documentation and licenses (%license, %doc), in directories the
+  # package owns (removed with it).
+  - dst: /usr/share/doc/conductor-files
+    type: dir
+    packager: rpm
+    file_info: {mode: 0755}
+  - dst: /usr/share/licenses/conductor-files
+    type: dir
+    packager: rpm
+    file_info: {mode: 0755}
+  - src: LICENSE
+    dst: /usr/share/licenses/conductor-files/LICENSE
+    type: license
+    packager: rpm
+    file_info: {mode: 0644}
+  - src: NOTICE
+    dst: /usr/share/licenses/conductor-files/NOTICE
+    type: license
+    packager: rpm
+    file_info: {mode: 0644}
+  - expand: true
+    src: ${BUILD}/doc/conductor-files/THIRD-PARTY-LICENSES
+    dst: /usr/share/licenses/conductor-files/THIRD-PARTY-LICENSES
+    type: license
+    packager: rpm
+    file_info: {mode: 0644}
+  - src: packaging/rpm/README.Fedora
+    dst: /usr/share/doc/conductor-files/README.Fedora
+    type: doc
+    packager: rpm
+    file_info: {mode: 0644}

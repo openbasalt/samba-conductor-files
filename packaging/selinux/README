@@ -1,0 +1,28 @@
+conductor-files-selinux: SELinux policy for the conductor-files agent
+=====================================================================
+
+The modules "conductor_files" and "conductor_files_port" (targeted policy,
+priority 200) confine /usr/bin/conductor-files (conductor-files.service,
+root with the unit's capability set) in conductor_files_t and label its
+port.
+
+  conductor_files_conf_t     /etc/conductor-files (agent.toml)
+  conductor_files_var_lib_t  /var/lib/conductor-files (key pair, pinned keys, audit log)
+  conductor_files_port_t     TCP 7443
+
+The agent manages Samba's registry configuration and databases
+(/var/lib/samba), runs net, sharesec, samba-tool, smbstatus, smbcontrol,
+wbinfo and testparm in its own domain, and manages folders and ACLs under
+the share roots, which must carry Samba's share type:
+
+  semanage fcontext -a -t samba_share_t '/srv/shares(/.*)?'
+  restorecon -R /srv/shares
+
+Another agent port:
+
+  semanage port -a -t conductor_files_port_t -p tcp 7444
+
+Troubleshooting:
+
+  ausearch -m AVC,USER_AVC -ts recent -c conductor-files
+  semanage permissive -a conductor_files_t     (and -d to revert)

@@ -14,7 +14,8 @@
 [Unit]
 Description=Samba Conductor file server agent
 Documentation=https://github.com/openbasalt/samba-conductor-files/blob/main/docs/install.md
-After=network-online.target smbd.service winbind.service
+# smbd is smbd.service on Debian and Ubuntu, smb.service on Fedora and Basalt OS.
+After=network-online.target smbd.service smb.service winbind.service
 Wants=network-online.target
 
 [Service]
@@ -33,7 +34,9 @@ CapabilityBoundingSet=CAP_CHOWN CAP_DAC_OVERRIDE CAP_DAC_READ_SEARCH CAP_FOWNER 
 AmbientCapabilities=
 NoNewPrivileges=yes
 ProtectSystem=strict
-ReadWritePaths=/var/lib/samba /var/cache/samba /run/samba
+# "-": Fedora and Basalt OS have no /var/cache/samba (nor, before Samba
+# starts, /run/samba); a missing path is skipped, not an error.
+ReadWritePaths=/var/lib/samba -/var/cache/samba -/run/samba
 ProtectHome=yes
 PrivateTmp=yes
 PrivateDevices=yes

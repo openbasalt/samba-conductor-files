@@ -1,0 +1,137 @@
+policy_module(conductor_files, 1.0.0)
+
+# SELinux policy of the conductor-files agent (conductor_files_t, root with
+# the unit's narrow capability set) on a domain-member file server: Samba's
+# registry configuration (net conf, sharesec), NT ACLs through samba-tool
+# and the security.NTACL attribute, POSIX ACLs and folders in the share
+# roots (samba_share_t), live sessions (smbstatus, smbcontrol, wbinfo), and
+# its TLS port for conductor. The Samba tools run in the agent's domain, so
+# the agent's rights bound theirs. A mandatory layer under the systemd
+# sandbox of deploy/systemd/conductor-files.service.
+
+########################################
+#
+# Declarations
+#
+
+type conductor_files_t;
+type conductor_files_exec_t;
+init_daemon_domain(conductor_files_t, conductor_files_exec_t)
+
+# /etc/conductor-files: agent.toml.
+type conductor_files_conf_t;
+files_config_file(conductor_files_conf_t)
+
+# /var/lib/conductor-files: the agent's key pair, pinned conductor keys,
+# enrollment codes, audit log.
+type conductor_files_var_lib_t;
+files_type(conductor_files_var_lib_t)
+
+type conductor_files_tmp_t;
+files_tmp_file(conductor_files_tmp_t)
+
+# TCP 7443 (conductor_files_port.cil).
+type conductor_files_port_t;
+corenet_port(conductor_files_port_t)
+
+########################################
+#
+# conductor-files local policy
+#
+
+# CHOWN, FOWNER, DAC_*: folders and ACLs owned by others; SYS_ADMIN: the
+# security.NTACL extended attribute (the unit's CapabilityBoundingSet=).
+allow conductor_files_t self:capability { chown dac_override dac_read_search fowner sys_admin };
+allow conductor_files_t self:process { getsched setsched signal_perms };
+allow conductor_files_t self:fifo_file rw_fifo_file_perms;
+allow conductor_files_t self:unix_stream_socket create_stream_socket_perms;
+allow conductor_files_t self:unix_dgram_socket create_socket_perms;
+allow conductor_files_t self:netlink_route_socket r_netlink_socket_perms;
+allow conductor_files_t self:tcp_socket { accept listen create_stream_socket_perms };
+allow conductor_files_t self:udp_socket create_socket_perms;
+
+read_files_pattern(conductor_files_t, conductor_files_conf_t, conductor_files_conf_t)
+list_dirs_pattern(conductor_files_t, conductor_files_conf_t, conductor_files_conf_t)
+
+manage_dirs_pattern(conductor_files_t, conductor_files_var_lib_t, conductor_files_var_lib_t)
+manage_files_pattern(conductor_files_t, conductor_files_var_lib_t, conductor_files_var_lib_t)
+files_search_var_lib(conductor_files_t)
+
+manage_dirs_pattern(conductor_files_t, conductor_files_tmp_t, conductor_files_tmp_t)
+manage_files_pattern(conductor_files_t, conductor_files_tmp_t, conductor_files_tmp_t)
+files_tmp_filetrans(conductor_files_t, conductor_files_tmp_t, { file dir })
+
+allow conductor_files_t conductor_files_port_t:tcp_socket name_bind;
+corenet_tcp_bind_generic_node(conductor_files_t)
+
+kernel_read_system_state(conductor_files_t)
+kernel_read_kernel_sysctls(conductor_files_t)
+kernel_read_net_sysctls(conductor_files_t)
+
+dev_read_sysfs(conductor_files_t)
+dev_read_urand(conductor_files_t)
+dev_read_rand(conductor_files_t)
+
+fs_getattr_all_fs(conductor_files_t)
+fs_search_cgroup_dirs(conductor_files_t)
+fs_read_cgroup_files(conductor_files_t)
+
+corecmd_exec_bin(conductor_files_t)
+corecmd_read_bin_symlinks(conductor_files_t)
+
+files_read_etc_files(conductor_files_t)
+files_read_usr_files(conductor_files_t)
+auth_use_nsswitch(conductor_files_t)
+miscfiles_read_localization(conductor_files_t)
+miscfiles_read_generic_certs(conductor_files_t)
+kerberos_read_config(conductor_files_t)
+sysnet_dns_name_resolve(conductor_files_t)
+logging_send_syslog_msg(conductor_files_t)
+
+# Samba on the member server: its configuration (read), the registry
+# configuration and share ACLs (net conf, sharesec: tdb files in
+# /var/lib/samba), the share roots, the daemons' sockets and messages.
+samba_read_config(conductor_files_t)
+samba_manage_var_dirs(conductor_files_t)
+samba_manage_var_files(conductor_files_t)
+samba_manage_var_sock_files(conductor_files_t)
+samba_manage_share_dirs(conductor_files_t)
+samba_manage_share_files(conductor_files_t)
+samba_search_pid(conductor_files_t)
+# net and smbcontrol run in the agent's domain (no transition).
+samba_exec_net(conductor_files_t)
+gen_require(`
+	type smbcontrol_exec_t;
+')
+can_exec(conductor_files_t, smbcontrol_exec_t)
+
+########################################
+#
+# conductor on the same host (a test setup) reaches the agent port.
+#
+
+optional_policy(`
+	gen_require(`
+		type conductor_t;
+	')
+
+	conductor_files_tcp_connect(conductor_t)
+')
+
+########################################
+#
+# Started by systemd: the units set NoNewPrivileges=yes, and the services
+# read their credentials from $CREDENTIALS_DIRECTORY (/run/credentials/<unit>,
+# which systemd labels init_var_run_t).
+#
+
+init_nnp_daemon_domain(conductor_files_t)
+
+gen_require(`
+	type init_var_run_t;
+')
+allow conductor_files_t init_var_run_t:dir search_dir_perms;
+allow conductor_files_t init_var_run_t:file read_file_perms;
+
+# SQLite in WAL mode maps its shared-memory index (<db>-shm).
+allow conductor_files_t conductor_files_var_lib_t:file map;

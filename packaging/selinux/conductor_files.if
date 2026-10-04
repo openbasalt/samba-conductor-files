@@ -1,0 +1,38 @@
+## <summary>Samba Conductor file server agent: shares, NT ACLs and sessions on domain-member file servers.</summary>
+
+########################################
+## <summary>
+##	Execute conductor-files in the conductor_files domain.
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed to transition.
+##	</summary>
+## </param>
+#
+interface(`conductor_files_domtrans',`
+	gen_require(`
+		type conductor_files_t, conductor_files_exec_t;
+	')
+
+	corecmd_search_bin($1)
+	domtrans_pattern($1, conductor_files_exec_t, conductor_files_t)
+')
+
+########################################
+## <summary>
+##	Connect to the conductor-files agent port (conductor_files_port_t).
+## </summary>
+## <param name="domain">
+##	<summary>
+##	Domain allowed access.
+##	</summary>
+## </param>
+#
+interface(`conductor_files_tcp_connect',`
+	gen_require(`
+		type conductor_files_port_t;
+	')
+
+	allow $1 conductor_files_port_t:tcp_socket name_connect;
+')

@@ -48,6 +48,7 @@ conductor-files version
 
 ## Documentation
 
+- `docs/install-fedora.md`: the same on Basalt OS / Fedora (RPM, SELinux).
 - `docs/install.md`: preparing a member server, installing, enrolling,
   revoking.
 - `docs/usage-p2b.md`: what was verified in the lab.

@@ -1,0 +1,37 @@
+conductor-files for Fedora and Basalt OS
+========================================
+
+conductor-files runs on a Samba domain-member file server, never on a
+domain controller. The package installs the agent, its unit and the
+configuration file /etc/conductor-files/agent.toml (root 0644, roots =
+/srv/shares). It does not enable or start anything. Where the targeted
+SELinux policy is installed, conductor-files-selinux comes with it: the
+agent runs in conductor_files_t and listens on conductor_files_port_t
+(TCP 7443).
+
+  1. Join the server to the domain with "include = registry" and
+     "vfs objects = acl_xattr" (docs/install.md, section 1).
+  2. Create the share roots (root-owned, not writable by others), label them
+     for Samba and list them in agent.toml and in a drop-in, since the
+     unit's file system is read-only elsewhere:
+       sudo install -d -m 0755 /srv/shares
+       sudo semanage fcontext -a -t samba_share_t '/srv/shares(/.*)?'
+       sudo restorecon -R /srv/shares
+       sudo install -d /etc/systemd/system/conductor-files.service.d
+       printf '[Service]\nReadWritePaths=/srv/shares\n' | \
+         sudo tee /etc/systemd/system/conductor-files.service.d/roots.conf
+  3. sudo systemctl daemon-reload
+     sudo systemctl enable --now conductor-files
+     sudo conductor-files check
+     sudo firewall-cmd --permanent --add-port=7443/tcp && sudo firewall-cmd --reload
+  4. sudo conductor-files enroll-code, then add the server in conductor.
+
+Another agent port needs the SELinux type:
+  sudo semanage port -a -t conductor_files_port_t -p tcp <port>
+
+Upgrades restart the agent when it is running. "dnf remove
+conductor-files" stops and disables it and removes the packaged files; it
+keeps /var/lib/conductor-files (key pair, pinned conductor keys, audit
+log), the roots.conf drop-in, and the shares and their folders.
+
+Full guide: https://github.com/openbasalt/samba-conductor-files/blob/main/docs/install-fedora.md
