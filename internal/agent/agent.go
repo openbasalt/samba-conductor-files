@@ -11,7 +11,12 @@
 //   - every change is planned first; an apply re-plans and proceeds only
 //     when the digest of the reviewed plan still matches;
 //   - every change and every refused request goes to the hash-chained audit
-//     log with the AD user conductor acted for and the client key's pin.
+//     log with the AD user conductor acted for and the client key's pin;
+//     refusals of peers without a pinned key are rate-limited (limits.go);
+//   - a peer without a pinned key never takes one of the connection slots
+//     of pinned conductors: it is bounded per source address and in total,
+//     with short deadlines, and wrong enrollment codes are counted per
+//     source, so a stranger can neither cancel a code nor starve conductor.
 package agent
 
 import (
@@ -72,7 +77,11 @@ type Agent struct {
 	now     func() time.Time
 	// writeMu serialises changes (one apply at a time).
 	writeMu sync.Mutex
+	// sem holds the slots of connections from pinned conductors only.
 	sem     chan struct{}
+	preAuth *connLimiter
+	enrolls *enrollLimiter
+	audits  *auditLimiter
 	wg      sync.WaitGroup
 	// readSmbConf reads the main Samba configuration (tests replace it).
 	readSmbConf func() ([]byte, error)
@@ -96,7 +105,9 @@ func New(o Options) *Agent {
 		o.Logger = slog.Default()
 	}
 	a := &Agent{cfg: o.Config, sb: o.Samba, guard: o.Guard, trust: o.Trust, audit: o.Audit, id: o.ID, log: o.Logger,
-		version: o.Version, now: time.Now, sem: make(chan struct{}, o.Config.Server.MaxConnections)}
+		version: o.Version, now: time.Now, sem: make(chan struct{}, o.Config.Server.MaxConnections),
+		preAuth: newConnLimiter(preAuthPerSource, preAuthMax), enrolls: newEnrollLimiter(o.Config.Enrollment.MaxFailures),
+		audits: newAuditLimiter()}
 	a.readSmbConf = func() ([]byte, error) { return os.ReadFile(a.cfg.State.SmbConf) }
 	return a
 }
@@ -129,12 +140,6 @@ func (a *Agent) TLSConfig() *tls.Config {
 	}
 }
 
-// Timeouts of one connection.
-const (
-	handshakeTimeout = 15 * time.Second
-	requestTimeout   = 10 * time.Minute
-)
-
 // Serve accepts connections on ln (plain TCP; TLS is added here) until ctx
 // ends.
 func (a *Agent) Serve(ctx context.Context, ln net.Listener) error {
@@ -157,28 +162,32 @@ func (a *Agent) Serve(ctx context.Context, ln net.Listener) error {
 			}
 			return err
 		}
-		select {
-		case a.sem <- struct{}{}:
-		default:
-			a.log.Warn("too many connections; refusing one", "remote", conn.RemoteAddr().String())
+		// Until the handshake shows a pinned key the connection counts
+		// against the pre-authentication limits, never against the slots
+		// of pinned conductors.
+		release, ok := a.preAuth.admit(conn, sourceOf(conn.RemoteAddr().String()))
+		if !ok {
 			_ = conn.Close()
 			continue
 		}
 		a.wg.Add(1)
 		go func() {
 			defer a.wg.Done()
-			defer func() { <-a.sem }()
-			a.serveConn(ctx, tls.Server(conn, conf))
+			defer release()
+			a.serveConn(ctx, tls.Server(conn, conf), release)
 		}()
 	}
 }
 
-func (a *Agent) serveConn(ctx context.Context, conn *tls.Conn) {
+// serveConn runs the handshake and one request. release gives back the
+// pre-authentication slot: called as soon as the key is known to be
+// pinned, when the connection takes a slot of a pinned conductor instead.
+func (a *Agent) serveConn(ctx context.Context, conn *tls.Conn, release func()) {
 	defer func() { _ = conn.Close() }()
 	remote := conn.RemoteAddr().String()
 	_ = conn.SetDeadline(a.now().Add(handshakeTimeout))
 	if err := conn.HandshakeContext(ctx); err != nil {
-		a.log.Info("TLS handshake failed", "remote", remote, "err", err)
+		a.log.Debug("TLS handshake failed", "remote", remote, "err", err)
 		return
 	}
 	certs := conn.ConnectionState().PeerCertificates
@@ -186,14 +195,26 @@ func (a *Agent) serveConn(ctx context.Context, conn *tls.Conn) {
 		return
 	}
 	pin := filesapi.PinOf(certs[0])
-	_ = conn.SetDeadline(a.now().Add(requestTimeout))
+	timeout := unauthRequestTimeout
+	if a.trust.Pinned(pin) {
+		release()
+		select {
+		case a.sem <- struct{}{}:
+			defer func() { <-a.sem }()
+		default:
+			a.log.Warn("too many connections; refusing one", "remote", remote)
+			return
+		}
+		timeout = requestTimeout
+	}
+	_ = conn.SetDeadline(a.now().Add(timeout))
 	var req filesapi.Request
 	if err := filesapi.ReadMessage(bufio.NewReaderSize(conn, 64<<10), &req); err != nil {
 		a.log.Info("unreadable request", "remote", remote, "err", err)
 		_ = filesapi.WriteMessage(conn, filesapi.ErrorResponse("", &filesapi.Error{Code: filesapi.CodeBadRequest, Message: "unreadable request"}))
 		return
 	}
-	rctx, cancel := context.WithTimeout(ctx, requestTimeout)
+	rctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	resp := a.Handle(rctx, pin, remote, req)
 	if err := filesapi.WriteMessage(conn, resp); err != nil {
@@ -213,10 +234,10 @@ func (a *Agent) Handle(ctx context.Context, pin, remote string, req filesapi.Req
 		return filesapi.ErrorResponse(req.ID, e)
 	}
 	if req.Op != filesapi.OpEnroll && !a.trust.Pinned(pin) {
-		a.record(req, pin, "", audit.ResultDenied, "client key not enrolled (from "+remote+")", "", nil)
+		a.recordUnauth(req, pin, remote, "", "client key not enrolled (from "+remote+")")
 		return filesapi.ErrorResponse(req.ID, &filesapi.Error{Code: filesapi.CodeNotEnrolled, Message: "this client key is not enrolled"})
 	}
-	result, apiErr := a.dispatch(ctx, pin, req, params)
+	result, apiErr := a.dispatch(ctx, pin, remote, req, params)
 	a.log.Info("request", "op", req.Op, "actor", req.Actor.String(), "ok", apiErr == nil, "took", a.now().Sub(start).Round(time.Millisecond))
 	if apiErr != nil {
 		return filesapi.ErrorResponse(req.ID, apiErr)
@@ -228,10 +249,10 @@ func (a *Agent) Handle(ctx context.Context, pin, remote string, req filesapi.Req
 	return resp
 }
 
-func (a *Agent) dispatch(ctx context.Context, pin string, req filesapi.Request, params filesapi.Params) (any, *filesapi.Error) {
+func (a *Agent) dispatch(ctx context.Context, pin, remote string, req filesapi.Request, params filesapi.Params) (any, *filesapi.Error) {
 	switch req.Op {
 	case filesapi.OpEnroll:
-		return a.enroll(req, pin, params.(*filesapi.EnrollParams))
+		return a.enroll(req, pin, remote, params.(*filesapi.EnrollParams))
 	case filesapi.OpUnenroll:
 		return a.unenroll(req, pin)
 	case filesapi.OpStatus:
@@ -279,17 +300,50 @@ func (a *Agent) record(req filesapi.Request, pin, target, result, detail, digest
 	}
 }
 
+// recordUnauth audits a refusal caused by a peer whose key is not pinned,
+// within the limits of auditLimiter (such a peer must not be able to fill
+// the audit log). Dropped entries are counted in the next one written.
+func (a *Agent) recordUnauth(req filesapi.Request, pin, remote, target, detail string) {
+	ok, suppressed := a.audits.allow(sourceOf(remote), a.now())
+	if !ok {
+		return
+	}
+	if suppressed > 0 {
+		detail += fmt.Sprintf(" (%d similar entries from unauthenticated peers suppressed before this one)", suppressed)
+	}
+	a.record(req, pin, target, audit.ResultDenied, detail, "", nil)
+}
+
 // ---- enrollment ----
 
-func (a *Agent) enroll(req filesapi.Request, pin string, p *filesapi.EnrollParams) (any, *filesapi.Error) {
+// ErrTooManyAttempts refuses a source address that sent too many wrong
+// codes for the outstanding enrollment code.
+var ErrTooManyAttempts = errors.New("too many wrong enrollment codes from this address: create a new code on the file server")
+
+func (a *Agent) enroll(req filesapi.Request, pin, remote string, p *filesapi.EnrollParams) (any, *filesapi.Error) {
 	a.writeMu.Lock()
 	defer a.writeMu.Unlock()
-	err := a.trust.Enroll(p.Token, pin, p.Name, req.Actor.String())
+	source := sourceOf(remote)
+	code := a.trust.PendingHash()
+	var err error
+	if code != "" && !a.enrolls.allowed(code, source) {
+		err = ErrTooManyAttempts
+	} else {
+		err = a.trust.Enroll(p.Token, pin, p.Name, req.Actor.String())
+		if errors.Is(err, ErrWrongToken) {
+			a.enrolls.fail(code, source)
+		}
+	}
 	if err != nil {
-		a.record(req, pin, p.Name, audit.ResultDenied, err.Error(), "", nil)
 		code := filesapi.CodeForbidden
-		if !errors.Is(err, ErrNoCode) && !errors.Is(err, ErrExpired) && !errors.Is(err, ErrWrongToken) && !errors.Is(err, ErrBurned) {
+		if !errors.Is(err, ErrNoCode) && !errors.Is(err, ErrExpired) && !errors.Is(err, ErrWrongToken) && !errors.Is(err, ErrTooManyAttempts) {
 			code = filesapi.CodeFailed
+		}
+		detail := err.Error() + " (from " + remote + ")"
+		if a.trust.Pinned(pin) {
+			a.record(req, pin, p.Name, audit.ResultDenied, detail, "", nil)
+		} else {
+			a.recordUnauth(req, pin, remote, p.Name, detail)
 		}
 		return nil, &filesapi.Error{Code: code, Message: err.Error()}
 	}

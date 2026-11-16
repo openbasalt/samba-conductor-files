@@ -122,8 +122,12 @@ The drop-in lists every root (`ReadWritePaths=` may appear once per root):
 the unit's file system is otherwise read-only. `check` must show every line
 `ok`; the agent refuses changes until it does.
 
-Firewall: allow TCP 7443 from the host(s) running conductor only. The agent
-does not need outbound connections.
+Firewall: allow TCP 7443 from the host(s) running conductor only, or bind
+`listen` in `agent.toml` to the management interface (for example
+`listen = "10.0.0.5:7443"`). The agent does not need outbound connections.
+Any host that reaches the port can open connections and, while an
+enrollment code is outstanding, try codes: the agent bounds both per source
+address, but only the firewall keeps strangers away.
 
 ## 4. Enroll the file server in conductor
 
@@ -141,7 +145,7 @@ conductor-files enroll-code
 ```
 
 It prints a one-time code (`cfe1.<token>.<key>`, valid 1 hour, single use;
-five wrong attempts cancel it). In conductor: File servers → Add a file
+five wrong attempts from one address lock that address out of the code). In conductor: File servers → Add a file
 server, the server's address (`fs1.example.com` or `fs1.example.com:7443`)
 and the code; review and confirm with your second factor. conductor pins the
 agent's key from the code; the agent pins conductor's key. On the file

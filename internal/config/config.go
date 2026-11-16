@@ -40,7 +40,8 @@ type Server struct {
 	// Name is the host name reported to conductor and the certificate's
 	// common name (default: the system host name).
 	Name string `toml:"name"`
-	// MaxConnections served at once.
+	// MaxConnections from pinned conductors served at once. Connections
+	// whose key is not pinned have separate, fixed limits (internal/agent).
 	MaxConnections int `toml:"max_connections"`
 }
 
@@ -74,7 +75,9 @@ type State struct {
 type Enrollment struct {
 	// TTL of a code (default 1 h, at most 24 h).
 	TTL Duration `toml:"ttl"`
-	// MaxFailures burns a code after this many wrong tokens (default 5).
+	// MaxFailures is the number of wrong codes one source address may send
+	// for an outstanding code before the agent refuses its further attempts
+	// at that code (default 5). The code itself stays valid for others.
 	MaxFailures int `toml:"max_failures"`
 }
 
