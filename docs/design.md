@@ -28,7 +28,15 @@ and the conductor side in
   absolute, root-owned, not writable by group or others. A request can
   never add a root, name a program, or carry free-form arguments.
 - The agent listens on TCP 7443; the firewall should admit only the
-  hosts running conductor.
+  hosts running conductor, and `listen` can name the management interface
+  only.
+- Peers that have not shown a pinned key cost little: the TLS handshake
+  has 5 seconds, a source address may hold 4 such connections, all sources
+  together 64 (the oldest is closed for a new one), and an enrollment
+  request has 10 seconds. They never take one of the `max_connections`
+  slots, which only pinned conductors use. Their refused requests are
+  audited at most once a minute per source address and 30 times a minute
+  in total; the next entry written counts the ones left out.
 
 ## Enrollment with a one-time code
 
@@ -36,7 +44,9 @@ and the conductor side in
   in its state directory; keys never travel.
 - Root on the file server runs `conductor-files enroll-code`, which prints
   `cfe1.<token>.<agent key pin>`. The token is 32 random bytes, stored
-  hashed, valid for one hour, single use; five wrong attempts burn it.
+  hashed, valid for one hour, single use. Five wrong attempts from one
+  source address lock that address out of the code; the code itself stays
+  valid, so a host that can reach the port cannot cancel it.
   `enroll-cancel` withdraws it.
 - An administrator pastes the code and the server's address in conductor
   (preview and re-authentication). conductor connects pinning the agent's

@@ -27,12 +27,15 @@ type trustFile struct {
 	Conductors []Conductor `json:"conductors"`
 }
 
-// pending is the one enrollment code that may be outstanding.
+// pending is the one enrollment code that may be outstanding. Failures is
+// kept only so files written by earlier versions still decode: wrong codes
+// are counted per source address by the agent (enrollLimiter), never
+// against the code itself, so a stranger cannot cancel it.
 type pending struct {
 	TokenHash string    `json:"token_hash"`
 	CreatedAt time.Time `json:"created_at"`
 	ExpiresAt time.Time `json:"expires_at"`
-	Failures  int       `json:"failures"`
+	Failures  int       `json:"failures,omitempty"`
 }
 
 // Trust keeps the pinned conductor keys and the outstanding enrollment
@@ -40,10 +43,9 @@ type pending struct {
 // agent and its command line use it, so every change takes an exclusive
 // lock (trust.lock) and every read goes to the files.
 type Trust struct {
-	dir         string
-	maxFailures int
-	now         func() time.Time
-	mu          sync.Mutex
+	dir string
+	now func() time.Time
+	mu  sync.Mutex
 }
 
 // Enrollment errors.
@@ -51,12 +53,11 @@ var (
 	ErrNoCode     = errors.New("no enrollment code is outstanding (run conductor-files enroll-code on the file server)")
 	ErrExpired    = errors.New("the enrollment code has expired")
 	ErrWrongToken = errors.New("the enrollment code does not match")
-	ErrBurned     = errors.New("too many wrong enrollment codes: the code was cancelled")
 )
 
 // NewTrust opens the trust store in dir.
-func NewTrust(dir string, maxFailures int) *Trust {
-	return &Trust{dir: dir, maxFailures: maxFailures, now: time.Now}
+func NewTrust(dir string) *Trust {
+	return &Trust{dir: dir, now: time.Now}
 }
 
 func (t *Trust) path(name string) string { return filepath.Join(t.dir, name) }
@@ -155,7 +156,7 @@ func (t *Trust) Pending() bool {
 	ok := false
 	_ = t.locked(func() error {
 		p, err := t.loadPending()
-		ok = err == nil && p != nil && t.now().Before(p.ExpiresAt) && p.Failures < t.maxFailures
+		ok = err == nil && p != nil && t.now().Before(p.ExpiresAt)
 		return nil
 	})
 	return ok
@@ -187,9 +188,26 @@ func (t *Trust) CancelCode() error {
 	})
 }
 
+// PendingHash returns the hash of the outstanding, unexpired code ("" when
+// there is none). The agent keys its per-source attempt counters on it, so
+// a new code starts every source afresh.
+func (t *Trust) PendingHash() string {
+	h := ""
+	_ = t.locked(func() error {
+		p, err := t.loadPending()
+		if err == nil && p != nil && t.now().Before(p.ExpiresAt) {
+			h = p.TokenHash
+		}
+		return nil
+	})
+	return h
+}
+
 // Enroll consumes the outstanding code if token matches and pins the
-// caller's key. A wrong token counts as a failure; the code is burned after
-// maxFailures.
+// caller's key. A wrong token leaves the code in place: the 256-bit token
+// cannot be guessed, and a global failure counter would let any peer that
+// reaches the listener cancel the code. The agent limits wrong attempts per
+// source address instead (enrollLimiter).
 func (t *Trust) Enroll(token, pin, name, by string) error {
 	return t.locked(func() error {
 		p, err := t.loadPending()
@@ -203,19 +221,7 @@ func (t *Trust) Enroll(token, pin, name, by string) error {
 			_ = os.Remove(t.path("enrollment.json"))
 			return ErrExpired
 		}
-		if p.Failures >= t.maxFailures {
-			_ = os.Remove(t.path("enrollment.json"))
-			return ErrBurned
-		}
 		if subtle.ConstantTimeCompare([]byte(filesapi.TokenHash(token)), []byte(p.TokenHash)) != 1 {
-			p.Failures++
-			if p.Failures >= t.maxFailures {
-				_ = os.Remove(t.path("enrollment.json"))
-				return ErrBurned
-			}
-			if err := writeJSON(t.path("enrollment.json"), p); err != nil {
-				return err
-			}
 			return ErrWrongToken
 		}
 		tf, err := t.load()

@@ -101,7 +101,7 @@ func run(args []string, out io.Writer) error {
 	case "enroll-code":
 		return enrollCode(cfg, *ttl, *quiet, out)
 	case "enroll-cancel":
-		return agent.NewTrust(cfg.State.Dir, cfg.Enrollment.MaxFailures).CancelCode()
+		return agent.NewTrust(cfg.State.Dir).CancelCode()
 	case "trust list":
 		return trustList(cfg, out)
 	case "trust remove":
@@ -152,7 +152,7 @@ func newAgent(cfg *config.Config, log *slog.Logger) (*agent.Agent, filesapi.Iden
 	t := tools()
 	t.P = cfg.Samba
 	a := agent.New(agent.Options{Config: cfg, Samba: t, Guard: fsguard.Guard{Roots: cfg.Shares.Roots}, ID: id, Audit: al,
-		Trust: agent.NewTrust(cfg.State.Dir, cfg.Enrollment.MaxFailures), Logger: log, Version: buildVersion()})
+		Trust: agent.NewTrust(cfg.State.Dir), Logger: log, Version: buildVersion()})
 	return a, id, nil
 }
 
@@ -173,7 +173,7 @@ func serve(cfg *config.Config) error {
 	if err != nil {
 		return err
 	}
-	trusted, _ := agent.NewTrust(cfg.State.Dir, cfg.Enrollment.MaxFailures).List()
+	trusted, _ := agent.NewTrust(cfg.State.Dir).List()
 	log.Info("conductor-files listening", "version", buildVersion(), "listen", cfg.Server.Listen, "key", id.Pin,
 		"roots", cfg.Shares.Roots, "trusted_conductors", len(trusted))
 	st := a.Status(ctx)
@@ -199,7 +199,7 @@ func enrollCode(cfg *config.Config, ttl time.Duration, quiet bool, out io.Writer
 	if ttl < time.Minute || ttl > 24*time.Hour {
 		return errors.New("--ttl must be 1m-24h")
 	}
-	tr := agent.NewTrust(cfg.State.Dir, cfg.Enrollment.MaxFailures)
+	tr := agent.NewTrust(cfg.State.Dir)
 	token, exp, err := tr.NewCode(ttl)
 	if err != nil {
 		return err
@@ -228,7 +228,7 @@ func localUser() string {
 }
 
 func trustList(cfg *config.Config, out io.Writer) error {
-	list, err := agent.NewTrust(cfg.State.Dir, cfg.Enrollment.MaxFailures).List()
+	list, err := agent.NewTrust(cfg.State.Dir).List()
 	if err != nil {
 		return err
 	}
@@ -245,7 +245,7 @@ func trustList(cfg *config.Config, out io.Writer) error {
 }
 
 func trustRemove(cfg *config.Config, pin string, out io.Writer) error {
-	removed, err := agent.NewTrust(cfg.State.Dir, cfg.Enrollment.MaxFailures).Remove(pin)
+	removed, err := agent.NewTrust(cfg.State.Dir).Remove(pin)
 	if err != nil {
 		return err
 	}

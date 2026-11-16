@@ -3,7 +3,9 @@
 # what this file allows.
 
 [server]
-# TCP address conductor connects to (TLS 1.3, both keys pinned).
+# TCP address conductor connects to (TLS 1.3, both keys pinned). Prefer the
+# management interface's address, and admit only conductor's host in the
+# firewall.
 listen = ":7443"
 # Host name reported to conductor (default: the system host name).
 # name = "fs1.example.com"
@@ -36,4 +38,6 @@ roots = ["/srv/shares"]
 
 # [enrollment]
 # ttl = "1h"
+# Wrong codes one source address may send for an outstanding code before
+# its further attempts are refused (the code stays valid for others).
 # max_failures = 5

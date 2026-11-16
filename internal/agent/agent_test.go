@@ -59,7 +59,7 @@ func newEnv(t *testing.T) *env {
 	}
 	f := newFake()
 	a := New(Options{Config: cfg, Samba: f, Guard: fsguard.Guard{Roots: cfg.Shares.Roots, Owner: os.Getuid()},
-		Trust: NewTrust(state, 5), Audit: al, ID: id, Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), Version: "test"})
+		Trust: NewTrust(state), Audit: al, ID: id, Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), Version: "test"})
 	e := &env{a: a, f: f, root: root, state: state, pin: "sha256:" + strings.Repeat("P", 43)}
 	tok, _, err := a.trust.NewCode(time.Hour)
 	if err != nil {
@@ -402,33 +402,30 @@ func TestTLS(t *testing.T) {
 
 func TestTrustCodes(t *testing.T) {
 	dir := t.TempDir()
-	tr := NewTrust(dir, 3)
+	tr := NewTrust(dir)
 	now := time.Date(2026, 10, 3, 12, 0, 0, 0, time.UTC)
 	tr.now = func() time.Time { return now }
 	if err := tr.Enroll("x", "sha256:a", "c", "t"); !errors.Is(err, ErrNoCode) {
 		t.Fatalf("no code: %v", err)
 	}
 	tok, _, _ := tr.NewCode(time.Hour)
-	if !tr.Pending() {
+	if !tr.Pending() || tr.PendingHash() != filesapi.TokenHash(tok) {
 		t.Fatal("pending")
 	}
 	now = now.Add(2 * time.Hour)
-	if tr.Pending() || !errors.Is(tr.Enroll(tok, "sha256:a", "c", "t"), ErrExpired) {
+	if tr.Pending() || tr.PendingHash() != "" || !errors.Is(tr.Enroll(tok, "sha256:a", "c", "t"), ErrExpired) {
 		t.Fatal("an expired code must not enroll")
 	}
 	tok, _, _ = tr.NewCode(time.Hour)
-	for i := 0; i < 2; i++ {
+	// Wrong tokens never cancel the code: the agent limits them per source.
+	for i := 0; i < 50; i++ {
 		if err := tr.Enroll(tok+"x", "sha256:a", "c", "t"); !errors.Is(err, ErrWrongToken) {
 			t.Fatalf("wrong %d: %v", i, err)
 		}
 	}
-	if err := tr.Enroll(tok+"x", "sha256:a", "c", "t"); !errors.Is(err, ErrBurned) {
-		t.Fatalf("burn: %v", err)
+	if !tr.Pending() {
+		t.Fatal("wrong tokens cancelled the code")
 	}
-	if err := tr.Enroll(tok, "sha256:a", "c", "t"); !errors.Is(err, ErrNoCode) {
-		t.Fatalf("a burned code must be gone: %v", err)
-	}
-	tok, _, _ = tr.NewCode(time.Hour)
 	if err := tr.Enroll(tok, "sha256:a", "c", "t"); err != nil || !tr.Pinned("sha256:a") || tr.Pending() {
 		t.Fatalf("enroll: %v", err)
 	}
@@ -438,5 +435,213 @@ func TestTrustCodes(t *testing.T) {
 	}
 	if ok, err := tr.Remove("sha256:a"); !ok || err != nil || tr.Pinned("sha256:a") {
 		t.Fatal("remove")
+	}
+}
+
+// auditCount returns the number of entries in the agent's audit log.
+func (e *env) auditCount(t *testing.T) int {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join(e.state, "audit.log"))
+	if errors.Is(err, os.ErrNotExist) {
+		return 0
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	return strings.Count(string(b), "\n")
+}
+
+// TestEnrollPerSource: a stranger's wrong codes lock out that stranger
+// only; the code stays valid for conductor, and the audit log takes at most
+// one entry per source per minute for them.
+func TestEnrollPerSource(t *testing.T) {
+	e := newEnv(t)
+	now := time.Date(2026, 11, 16, 10, 0, 0, 0, time.UTC)
+	e.a.now = func() time.Time { return now }
+	tok, _, err := e.a.trust.NewCode(time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	enroll := func(token, pin, remote string) error {
+		e.n++
+		req, err := filesapi.NewRequest(fmt.Sprintf("enr-%06d", e.n), filesapi.OpEnroll, actor, filesapi.EnrollParams{Token: token, Name: "x"})
+		if err != nil {
+			return err
+		}
+		return filesapi.DecodeResult(e.a.Handle(context.Background(), pin, remote, req), nil)
+	}
+	stranger := "sha256:" + strings.Repeat("S", 43)
+	before := e.auditCount(t)
+	for i := 0; i < 20; i++ {
+		err := enroll(strings.Repeat("A", 43), stranger, "203.0.113.9:4000")
+		wantCode(t, err, filesapi.CodeForbidden)
+		if i >= 5 && !strings.Contains(err.Error(), "too many wrong enrollment codes") {
+			t.Fatalf("attempt %d not refused: %v", i, err)
+		}
+	}
+	// The right token is refused from the locked-out address too.
+	wantCode(t, enroll(tok, stranger, "203.0.113.9:4001"), filesapi.CodeForbidden)
+	if got := e.auditCount(t) - before; got != 1 {
+		t.Fatalf("a stranger wrote %d audit entries in one minute, want 1", got)
+	}
+	if !e.a.trust.Pending() {
+		t.Fatal("a stranger cancelled the enrollment code")
+	}
+	// Non-enroll requests from an unpinned key: rate-limited as well.
+	for i := 0; i < 10; i++ {
+		e.n++
+		req, _ := filesapi.NewRequest(fmt.Sprintf("st-%06d", e.n), filesapi.OpStatus, actor, nil)
+		wantCode(t, filesapi.DecodeResult(e.a.Handle(context.Background(), stranger, "203.0.113.9:4002", req), nil), filesapi.CodeNotEnrolled)
+	}
+	if got := e.auditCount(t) - before; got != 1 {
+		t.Fatalf("%d audit entries, want 1", got)
+	}
+	now = now.Add(2 * time.Minute)
+	e.n++
+	req, _ := filesapi.NewRequest(fmt.Sprintf("st-%06d", e.n), filesapi.OpStatus, actor, nil)
+	_ = filesapi.DecodeResult(e.a.Handle(context.Background(), stranger, "203.0.113.9:4003", req), nil)
+	b, _ := os.ReadFile(filepath.Join(e.state, "audit.log"))
+	if e.auditCount(t)-before != 2 || !strings.Contains(string(b), "suppressed before this one") {
+		t.Fatal("the next entry must report the suppressed ones")
+	}
+	// conductor, from its own address, enrolls with the code.
+	other := "sha256:" + strings.Repeat("C", 43)
+	if err := enroll(tok, other, "192.0.2.10:5000"); err != nil {
+		t.Fatalf("conductor's enrollment: %v", err)
+	}
+	if !e.a.trust.Pinned(other) {
+		t.Fatal("not pinned")
+	}
+}
+
+func TestAuditLimiter(t *testing.T) {
+	l := newAuditLimiter()
+	now := time.Date(2026, 11, 16, 10, 0, 0, 0, time.UTC)
+	written := 0
+	for i := 0; i < 1000; i++ {
+		if ok, _ := l.allow(fmt.Sprintf("198.51.100.%d", i%250), now); ok {
+			written++
+		}
+	}
+	if written != unauthAuditPerMinute {
+		t.Fatalf("%d entries in one minute from many sources, want %d", written, unauthAuditPerMinute)
+	}
+	ok, n := l.allow("192.0.2.1", now.Add(time.Minute))
+	if !ok || n != 1000-unauthAuditPerMinute {
+		t.Fatalf("next minute: %v, suppressed %d", ok, n)
+	}
+}
+
+type fakeConn struct {
+	net.Conn
+	closed bool
+}
+
+func (c *fakeConn) Close() error { c.closed = true; return nil }
+
+func TestConnLimiter(t *testing.T) {
+	l := newConnLimiter(2, 3)
+	now := time.Unix(1000, 0)
+	l.now = func() time.Time { now = now.Add(time.Second); return now }
+	a1, a2, a3 := &fakeConn{}, &fakeConn{}, &fakeConn{}
+	relA1, ok1 := l.admit(a1, "a")
+	_, ok2 := l.admit(a2, "a")
+	if !ok1 || !ok2 {
+		t.Fatal("admit a")
+	}
+	if _, ok := l.admit(a3, "a"); ok {
+		t.Fatal("a third connection from one source was admitted")
+	}
+	b1 := &fakeConn{}
+	if _, ok := l.admit(b1, "b"); !ok {
+		t.Fatal("admit b")
+	}
+	// Full: a new source evicts the oldest connection of another source.
+	c1 := &fakeConn{}
+	if _, ok := l.admit(c1, "c"); !ok || !a1.closed || l.count() != 3 {
+		t.Fatalf("eviction: ok=%v closed=%v count=%d", ok, a1.closed, l.count())
+	}
+	relA1()
+	relA1()
+	if l.count() != 3 {
+		t.Fatalf("release after eviction changed the count: %d", l.count())
+	}
+}
+
+func TestEnrollLimiter(t *testing.T) {
+	l := newEnrollLimiter(2)
+	l.fail("code1", "a")
+	l.fail("code1", "a")
+	if l.allowed("code1", "a") || !l.allowed("code1", "b") {
+		t.Fatal("per source")
+	}
+	if !l.allowed("code2", "a") {
+		t.Fatal("a new code starts every source afresh")
+	}
+}
+
+// TestPreAuthLimits runs the real listener: idle connections that never
+// handshake are capped per source and never take a pinned conductor's
+// slot, so conductor's calls go through while they are held open.
+func TestPreAuthLimits(t *testing.T) {
+	e := newEnv(t)
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- e.a.Serve(ctx, ln) }()
+	defer func() {
+		cancel()
+		<-done
+	}()
+	addr := ln.Addr().String()
+	dir := t.TempDir()
+	_ = os.Chmod(dir, 0o700)
+	cid, err := filesapi.LoadOrCreateIdentity(dir, "conductor")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tok, _, _ := e.a.trust.NewCode(time.Hour)
+	if err := e.a.trust.Enroll(tok, cid.Pin, "conductor", "test"); err != nil {
+		t.Fatal(err)
+	}
+	// A stranger on another loopback address holds idle connections.
+	d := net.Dialer{LocalAddr: &net.TCPAddr{IP: net.ParseIP("127.0.0.2")}, Timeout: 2 * time.Second}
+	var idle []net.Conn
+	defer func() {
+		for _, c := range idle {
+			_ = c.Close()
+		}
+	}()
+	for i := 0; i < preAuthPerSource+e.a.cfg.Server.MaxConnections; i++ {
+		c, err := d.Dial("tcp", addr)
+		if err != nil {
+			t.Skipf("cannot dial from 127.0.0.2: %v", err)
+		}
+		idle = append(idle, c)
+	}
+	// The connections beyond the per-source cap are closed at once.
+	closed := 0
+	for _, c := range idle {
+		_ = c.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+		if _, err := c.Read(make([]byte, 1)); err != nil && !errors.Is(err, os.ErrDeadlineExceeded) {
+			closed++
+		}
+	}
+	if closed != e.a.cfg.Server.MaxConnections {
+		t.Fatalf("%d connections closed, want %d", closed, e.a.cfg.Server.MaxConnections)
+	}
+	req, _ := filesapi.NewRequest("pre-000001", filesapi.OpStatus, actor, nil)
+	cctx, ccancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer ccancel()
+	resp, err := filesapi.Call(cctx, addr, cid, e.a.id.Pin, req)
+	if err != nil {
+		t.Fatalf("conductor starved by idle connections: %v", err)
+	}
+	var st filesapi.Status
+	if err := filesapi.DecodeResult(resp, &st); err != nil {
+		t.Fatal(err)
 	}
 }

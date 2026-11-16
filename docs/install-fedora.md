@@ -22,7 +22,8 @@ sudo net ads join -U Administrator
 sudo authselect select winbind --force
 sudo systemctl enable --now winbind smb
 sudo firewall-cmd --permanent --add-service=samba
-sudo firewall-cmd --permanent --add-port=7443/tcp
+# The agent port, from the conductor host only (its address here).
+sudo firewall-cmd --permanent --add-rich-rule='rule family="ipv4" source address="192.0.2.10/32" port port="7443" protocol="tcp" accept'
 sudo firewall-cmd --reload
 ```
 
